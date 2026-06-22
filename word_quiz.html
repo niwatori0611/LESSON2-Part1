@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>英単語クイズ</title>
+<style>
+  :root{
+    --bg:#1b1f2a; --card:#252b3a; --accent:#5eead4; --accent2:#f59e0b;
+    --text:#e8ecf4; --sub:#9aa4b8; --wrong:#ef4444; --right:#22c55e;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--bg); color:var(--text);
+    font-family:'Hiragino Kaku Gothic ProN','Segoe UI',sans-serif;
+  }
+  .card{
+    background:var(--card); border-radius:18px; padding:36px 32px;
+    width:90%; max-width:420px; box-shadow:0 10px 30px rgba(0,0,0,.4);
+  }
+  .progress{font-size:13px; color:var(--sub); letter-spacing:.05em;}
+  h1{
+    font-size:42px; margin:8px 0 4px; color:var(--accent);
+    letter-spacing:.02em;
+  }
+  .sub{color:var(--sub); font-size:13px; margin-bottom:24px;}
+  .choice{
+    display:block; width:100%; text-align:left; padding:14px 16px; margin:10px 0;
+    background:#1f2433; border:1px solid #343c52; border-radius:10px; color:var(--text);
+    font-size:16px; cursor:pointer; transition:.15s;
+  }
+  .choice:hover{border-color:var(--accent); background:#262d40;}
+  .choice.correct{background:rgba(34,197,94,.18); border-color:var(--right);}
+  .choice.wrong{background:rgba(239,68,68,.18); border-color:var(--wrong);}
+  .choice:disabled{cursor:default;}
+  .footer{display:flex; justify-content:space-between; align-items:center; margin-top:20px;}
+  .score{color:var(--accent2); font-weight:bold;}
+  button.next{
+    background:var(--accent); color:#10151f; border:none; border-radius:8px;
+    padding:10px 18px; font-weight:bold; cursor:pointer; font-size:14px;
+  }
+  button.next:disabled{opacity:0; pointer-events:none;}
+  .done{text-align:center;}
+  .done h2{color:var(--accent); font-size:28px;}
+  .pagetitle{
+    position:fixed; top:18px; left:0; right:0; text-align:center;
+    font-size:22px; font-weight:bold; color:var(--accent2); letter-spacing:.08em;
+  }
+</style>
+</head>
+<body>
+<div class="pagetitle">U2P1</div>
+<div class="card" id="app"></div>
+
+<script>
+// ---- 単語リスト（ここに英単語と正しい訳、ダミー訳4つを追加していけます） ----
+const WORDS = [
+  { word: "aim", correct: "目的、狙う", dummies: ["速度", "援助する", "規則", "比較する"] },
+  { word: "background", correct: "背景", dummies: ["表面", "結果", "原因", "性質"] },
+  { word: "darkness", correct: "暗闇", dummies: ["静けさ", "湿気", "混乱", "重さ"] },
+  { word: "burst", correct: "破裂する", dummies: ["移動する", "比較する", "測定する", "回復する"] },
+  { word: "explode", correct: "爆発する", dummies: ["減少する", "拡大する", "停止する", "回転する"] },
+  { word: "surprisingly", correct: "驚くほど", dummies: ["普通に", "徐々に", "確実に", "結果的に"] },
+  { word: "obtain", correct: "得る", dummies: ["拒否する", "比較する", "防ぐ", "想像する"] },
+  { word: "improvement", correct: "改善", dummies: ["原因", "結果", "失敗", "影響"] },
+  { word: "unable", correct: "できない", dummies: ["不安な", "不要な", "不満な", "不便な"] },
+  { word: "height", correct: "高さ", dummies: ["重さ", "速さ", "広さ", "深さ"] },
+  { word: "normally", correct: "通常は", dummies: ["突然", "わずかに", "明らかに", "間もなく"] },
+  { word: "farther", correct: "もっと遠くに", dummies: ["もっと早く", "もっと多く", "もっと深く", "もっと高く"] },
+  { word: "method", correct: "方法", dummies: ["目標", "理由", "結果", "条件"] }
+];
+
+let idx = 0, score = 0, locked = false;
+
+function shuffle(arr){
+  const a = [...arr];
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function render(){
+  const app = document.getElementById('app');
+  if(idx >= WORDS.length){
+    app.innerHTML = `
+      <div class="done">
+        <h2>終了！</h2>
+        <p>結果: <span class="score">${score} / ${WORDS.length}</span></p>
+        <button class="next" onclick="restart()">もう一度</button>
+      </div>`;
+    return;
+  }
+  const q = WORDS[idx];
+  const options = shuffle([q.correct, ...q.dummies]);
+  locked = false;
+
+  app.innerHTML = `
+    <div class="progress">問題 ${idx+1} / ${WORDS.length}</div>
+    <h1>${q.word}</h1>
+    <div class="sub">正しい意味を選んでください</div>
+    <div id="choices"></div>
+    <div class="footer">
+      <span class="score">Score: ${score}</span>
+      <button class="next" id="nextBtn" disabled onclick="next()">次へ →</button>
+    </div>
+  `;
+
+  const choicesDiv = document.getElementById('choices');
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'choice';
+    btn.textContent = opt;
+    btn.onclick = () => select(btn, opt, q.correct);
+    choicesDiv.appendChild(btn);
+  });
+}
+
+function select(btn, opt, correctAns){
+  if(locked) return;
+  locked = true;
+  const allBtns = document.querySelectorAll('.choice');
+  allBtns.forEach(b => b.disabled = true);
+
+  if(opt === correctAns){
+    btn.classList.add('correct');
+    score++;
+  } else {
+    btn.classList.add('wrong');
+    allBtns.forEach(b => { if(b.textContent === correctAns) b.classList.add('correct'); });
+  }
+  document.getElementById('nextBtn').disabled = false;
+}
+
+function next(){
+  idx++;
+  render();
+}
+
+function restart(){
+  idx = 0; score = 0;
+  render();
+}
+
+render();
+</script>
+</body>
+</html>

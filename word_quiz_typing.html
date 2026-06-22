@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>英単語クイズ（記述式）</title>
+<style>
+  :root{
+    --bg:#1b1f2a; --card:#252b3a; --accent:#5eead4; --accent2:#f59e0b;
+    --text:#e8ecf4; --sub:#9aa4b8; --wrong:#ef4444; --right:#22c55e;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--bg); color:var(--text);
+    font-family:'Hiragino Kaku Gothic ProN','Segoe UI',sans-serif;
+    padding:70px 12px 20px;
+  }
+  .pagetitle{
+    position:fixed; top:18px; left:0; right:0; text-align:center;
+    font-size:22px; font-weight:bold; color:var(--accent2); letter-spacing:.08em;
+  }
+  .card{
+    background:var(--card); border-radius:18px; padding:32px 26px;
+    width:100%; max-width:420px; box-shadow:0 10px 30px rgba(0,0,0,.4);
+  }
+  .progress{font-size:13px; color:var(--sub); letter-spacing:.05em;}
+  h1{
+    font-size:30px; margin:8px 0 4px; color:var(--accent);
+    line-height:1.4;
+  }
+  .sub{color:var(--sub); font-size:13px; margin-bottom:20px;}
+  input[type="text"]{
+    width:100%; padding:14px 16px; font-size:18px; border-radius:10px;
+    border:1px solid #343c52; background:#1f2433; color:var(--text);
+    margin-bottom:14px;
+  }
+  input[type="text"]:focus{outline:none; border-color:var(--accent);}
+  input.correct{border-color:var(--right); background:rgba(34,197,94,.12);}
+  input.wrong{border-color:var(--wrong); background:rgba(239,68,68,.12);}
+  .answer-reveal{font-size:14px; color:var(--right); margin:-6px 0 14px; min-height:18px;}
+  button{
+    background:var(--accent); color:#10151f; border:none; border-radius:8px;
+    padding:12px 18px; font-weight:bold; cursor:pointer; font-size:15px;
+    width:100%;
+  }
+  button:disabled{opacity:.4;}
+  .footer{display:flex; justify-content:space-between; align-items:center; margin-top:16px;}
+  .score{color:var(--accent2); font-weight:bold;}
+  .done{text-align:center;}
+  .done h2{color:var(--accent); font-size:28px;}
+</style>
+</head>
+<body>
+<div class="pagetitle">U2P1</div>
+<div class="card" id="app"></div>
+
+<script>
+// ---- 単語リスト（英単語、答え合わせ用の意味、入力すべき正解の単語スペル） ----
+const WORDS = [
+  { word: "aim",            meaning: "目的、狙う",       answer: ["aim"] },
+  { word: "background",     meaning: "背景",            answer: ["background"] },
+  { word: "darkness",       meaning: "暗闇",            answer: ["darkness"] },
+  { word: "burst",          meaning: "破裂する",         answer: ["burst"] },
+  { word: "explode",        meaning: "爆発する",         answer: ["explode"] },
+  { word: "surprisingly",   meaning: "驚くほど",         answer: ["surprisingly"] },
+  { word: "obtain",         meaning: "得る",            answer: ["obtain"] },
+  { word: "improvement",    meaning: "改善",            answer: ["improvement"] },
+  { word: "unable",         meaning: "できない",         answer: ["unable"] },
+  { word: "height",         meaning: "高さ",            answer: ["height"] },
+  { word: "normally",       meaning: "通常は",           answer: ["normally"] },
+  { word: "farther",        meaning: "もっと遠くに",      answer: ["farther"] },
+  { word: "method",         meaning: "方法",            answer: ["method"] }
+];
+
+let idx = 0, score = 0, locked = false;
+let order = [...Array(WORDS.length).keys()];
+shuffleArr(order);
+
+function shuffleArr(a){
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+}
+
+function normalize(s){
+  return s.trim().toLowerCase();
+}
+
+function render(){
+  const app = document.getElementById('app');
+  if(idx >= order.length){
+    app.innerHTML = `
+      <div class="done">
+        <h2>終了！</h2>
+        <p>結果: <span class="score">${score} / ${order.length}</span></p>
+        <button onclick="restart()">もう一度</button>
+      </div>`;
+    return;
+  }
+  const q = WORDS[order[idx]];
+  locked = false;
+
+  app.innerHTML = `
+    <div class="progress">問題 ${idx+1} / ${order.length}</div>
+    <h1>${q.meaning}</h1>
+    <div class="sub">対応する英単語を入力してください</div>
+    <input type="text" id="answerInput" autocomplete="off" autocapitalize="off"
+           autocorrect="off" spellcheck="false" placeholder="英単語を入力">
+    <div class="answer-reveal" id="reveal"></div>
+    <div class="footer" style="display:block;">
+      <button id="actionBtn" onclick="checkOrNext()">解答する</button>
+    </div>
+    <div class="footer">
+      <span class="score">Score: ${score}</span>
+      <span></span>
+    </div>
+  `;
+
+  const input = document.getElementById('answerInput');
+  input.focus();
+}
+
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){
+    const btn = document.getElementById('actionBtn');
+    if(btn) checkOrNext();
+  }
+});
+
+function checkOrNext(){
+  const q = WORDS[order[idx]];
+  const btn = document.getElementById('actionBtn');
+
+  if(!locked){
+    locked = true;
+    const input = document.getElementById('answerInput');
+    const val = normalize(input.value);
+    const correctAnswers = q.answer.map(normalize);
+    const isCorrect = correctAnswers.includes(val);
+
+    input.disabled = true;
+    input.classList.add(isCorrect ? 'correct' : 'wrong');
+    document.getElementById('reveal').textContent = isCorrect
+      ? '正解！'
+      : `不正解。正解は「${q.answer[0]}」`;
+
+    if(isCorrect) score++;
+    btn.textContent = '次へ →';
+  } else {
+    idx++;
+    render();
+  }
+}
+
+function restart(){
+  idx = 0; score = 0;
+  order = [...Array(WORDS.length).keys()];
+  shuffleArr(order);
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
